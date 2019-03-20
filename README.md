@@ -1,3 +1,3 @@
 # CanvAsteroids
 
-##asteroids, written quickly and badly
+## asteroids, written quickly and badly
