@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>CanvAsteroids</title>
+  <style type="text/css">
+    html, body, canvas {
+      width: 100%;
+      height: 100%;
+      padding: 0;
+      margin: 0;
+      overflow: hidden;
+    }
+    #score {
+      position: fixed;
+      top: 0;
+      left: 0;
+      background-color: white;
+    }
+  </style>
+  </head>
+  <body>
+    <canvas id="canvas"></canvas>
+    <div id="score"></div>
+  <script type="text/javascript">
+
+   function autorun()
+   {
+     const canvas = document.getElementById("canvas");
+     const ctx = canvas.getContext('2d');
+
+     function onResize(){
+       canvas.width = canvas.clientWidth;
+       canvas.height = canvas.clientHeight;
+       ctx.translate(canvas.width/2, canvas.height/2);
+     }
+     onResize();
+
+     window.addEventListener("resize", onResize);
+
+     const acceleration = 0.6;
+     const angleSpeed = 15;
+     const bulletSpeed = 15;
+     const bulletLife = 60;
+     const initialAsteroidSize = 70;
+
+     var currentScore = 0;
+
+     var playerShape = [
+       { X: 0, Y: -11 },
+       { X: 9, Y: 11 },
+       { X: 0, Y: 6 },
+       { X: -9, Y: 11 }
+     ];
+
+     var asteroids = [];
+     var bullets = [];
+
+     var playerAngleCount = 0;
+     var playerSpeedCount = 0;
+     var shot = false;
+
+     var velocity = {X: 0, Y: 0};
+     var playerPosition = {X: 0, Y: 0};
+     var playerAngle = 0;
+
+    function startRound(){
+      asteroids = [];
+      playerAngleCount = 0;
+      playerSpeedCount = 0;
+      shot = false;
+      velocity = {X: 0, Y: 0};
+      playerPosition = {X: 0, Y: 0};
+      playerAngle = 0;
+
+     createAsteroidField(5,initialAsteroidSize);
+    }
+
+     function handleInputDown(e){
+       switch (e.code) {
+         case "Space":
+          shot = true;
+          break;
+         case "KeyA":
+         case "ArrowLeft":
+          playerAngleCount = -1;
+          break;
+         case "KeyD":
+         case "ArrowRight":
+          playerAngleCount = 1;
+          break;
+         case "KeyS":
+         case "ArrowDown":
+          playerSpeedCount = -1;
+          break;
+         case "KeyW":
+         case "ArrowUp":
+          playerSpeedCount = 1;
+          break;
+       }
+     }
+     function handleInputUp(e){
+       switch (e.code) {
+         case "KeyA":
+         case "ArrowLeft":
+          playerAngleCount = 0;
+          break;
+         case "KeyD":
+         case "ArrowRight":
+          playerAngleCount = 0;
+          break;
+         case "KeyS":
+         case "ArrowDown":
+          playerSpeedCount = 0;
+          break;
+         case "KeyW":
+         case "ArrowUp":
+          playerSpeedCount = 0;
+          break;
+       }
+     }
+    window.addEventListener("keydown", handleInputDown);
+    window.addEventListener("keyup", handleInputUp);
+
+    function degToRad(deg){
+      return deg * Math.PI / 180;
+    }
+
+    function rotatePoint(pt, angle){
+      let rad = degToRad(angle);
+      let x = pt.X;
+      let y = pt.Y;
+      return {
+        X: (x*Math.cos(rad)) - (y*Math.sin(rad)),
+        Y: (y*Math.cos(rad)) + (x*Math.sin(rad))
+      }
+    }
+
+    function createAsteroidField(count, size) {
+      for(var i = 0; i < count; i++){
+        var ast = generateAsteroid(size);
+        ast.position = rotatePoint({X:0, Y: Math.min(canvas.width*0.3, canvas.height*0.3) + Math.random()*Math.min(canvas.width*0.6, canvas.height*0.6)}, i*(360/count));
+        ast.velocity.X = Math.random()*7 - 3.5;
+        ast.velocity.Y = Math.random()*7 - 3.5;
+        asteroids.push(ast);
+      }
+    }
+
+    function generateAsteroid(size){
+      //generate n points at each 360/n step around origin
+      var pts = 24
+      var ast = {
+        points: [],
+        position: {X:0 ,Y:0},
+        velocity: {X:0 ,Y:0},
+        angle: 0,
+        lives: 3,
+      }
+      for(var i = 0; i < pts; i++){
+        var len = size*0.7 + (size *0.3 * Math.random());
+        ast.points.push(rotatePoint({X: 0, Y: len}, i*(360/pts)));
+      }
+      return ast;
+    }
+
+    function blowUpAsteroid(index){
+
+      currentScore += 100;
+
+      var ast = asteroids[index];
+
+      ast.lives --;
+
+      //if life remaining
+      if(ast.lives > 0){
+        //split the asteroids list of points in 2 to create 2 new asteroids
+        var as1 = generateAsteroid(initialAsteroidSize/(1 + 3 - ast.lives));
+        var as2 = generateAsteroid(initialAsteroidSize/(1 + 3 - ast.lives));
+        as1.lives = as2.lives = ast.lives;
+        as1.position.X = as2.position.X = ast.position.X;
+        as1.position.Y = as2.position.Y = ast.position.Y;
+        as1.velocity.X = ast.velocity.X*Math.random();
+        as1.velocity.Y = ast.velocity.Y*Math.random();
+        as2.velocity.X = ast.velocity.X*Math.random();
+        as2.velocity.Y = ast.velocity.Y*Math.random();
+        asteroids.push(as1);
+        asteroids.push(as2);
+        asteroids.splice(index,1);
+        //take the average vector of the sets of lines to generate the vector to add
+
+      }else{
+        asteroids.splice(index,1);
+        currentScore += 50;
+      }
+    }
+
+    function shoot(){
+      var bullet = {
+        thispos: { X: playerPosition.X, Y: playerPosition.Y},
+        lastpos: { X: playerPosition.X, Y: playerPosition.Y},
+        velocity: rotatePoint({X:0, Y:-bulletSpeed}, playerAngle),
+        remaining: bulletLife
+      }
+      bullets.push(bullet);
+    }
+
+    function drawShapeFromArray(pointArray, adjustPos, rotate){
+      drawShapeFromArrayInner(pointArray, adjustPos, rotate);
+      //draw 4 shadows - easy, dumb way to ensure parts can overlap edges of world
+      drawShapeFromArrayInner(pointArray, {X: adjustPos.X + canvas.width, Y: adjustPos.Y}, rotate);
+      drawShapeFromArrayInner(pointArray, {X: adjustPos.X - canvas.width, Y: adjustPos.Y}, rotate);
+      drawShapeFromArrayInner(pointArray, {X: adjustPos.X, Y: adjustPos.Y + canvas.height}, rotate);
+      drawShapeFromArrayInner(pointArray, {X: adjustPos.X, Y: adjustPos.Y - canvas.height}, rotate);
+
+      function drawShapeFromArrayInner(pointArray, adjustPos, rotate){
+        ctx.fillStyle = "black";
+        ctx.strokeStyle = "white";
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        var pos1 = rotatePoint(pointArray[pointArray.length - 1], rotate);
+        pos1.X += adjustPos.X;
+        pos1.Y += adjustPos.Y;
+        ctx.moveTo(pos1.X, pos1.Y);
+        for (p in pointArray){
+          //console.log(pointArray[p])
+          var pt = rotatePoint(pointArray[p], rotate);
+          pt.X += adjustPos.X;
+          pt.Y += adjustPos.Y;
+          ctx.lineTo(pt.X, pt.Y);
+        }
+        ctx.stroke();
+      };
+    };
+
+    function applyVelocity(posVec, velVec){
+      posVec.X += velVec.X;
+      posVec.Y += velVec.Y;
+      posVec.X = ((canvas.width  + posVec.X + canvas.width  /2) % canvas.width ) - canvas.width  /2;
+      posVec.Y = ((canvas.height + posVec.Y + canvas.height /2) % canvas.height) - canvas.height /2;
+    }
+
+    function doShapesIntersect(shape1, shape1pos, shape1rot, shape2, shape2pos, shape2rot){
+
+      //shape1 point 0
+      pt0 = rotatePoint(shape1[shape1.length - 1], shape1rot);
+      pt0.X += shape1pos.X;
+      pt0.Y += shape1pos.Y;
+      for(p1 in shape1){
+        //shape1 point 0
+        pt1 = rotatePoint(shape2[shape2.length - 1], shape2rot);
+        pt1.X += shape2pos.X;
+        pt1.Y += shape2pos.Y;
+        for(p2 in shape2){
+          ptn1 = rotatePoint(shape1[p1], shape1rot);
+          ptn1.X += shape1pos.X;
+          ptn1.Y += shape1pos.Y;
+          ptn2 = rotatePoint(shape2[p2], shape2rot);
+          ptn2.X += shape2pos.X;
+          ptn2.Y += shape2pos.Y;
+
+          if(intersects(
+            pt0.X,
+            pt0.Y,
+            ptn1.X,
+            ptn1.Y,
+            pt1.X,
+            pt1.Y,
+            ptn2.X,
+            ptn2.Y
+          )){
+            return true;
+          }
+          pt0 = ptn1;
+          pt1 = ptn2;
+        }
+      }
+
+      //return false if nothing collides
+      return false;
+
+      //shamelessly stolen from stackoverflow
+      // returns true iff the line from (a,b)->(c,d) intersects with (p,q)->(r,s)
+      function intersects(a,b,c,d,p,q,r,s) {
+        var det, gamma, lambda;
+        det = (c - a) * (s - q) - (r - p) * (d - b);
+        if (det === 0) {
+          return false;
+        } else {
+          lambda = ((s - q) * (r - a) + (p - r) * (s - b)) / det;
+          gamma = ((b - d) * (r - a) + (c - a) * (s - b)) / det;
+          return (0 < lambda && lambda < 1) && (0 < gamma && gamma < 1);
+        }
+      };
+    }
+
+    startRound();
+
+    function step(){
+      ctx.fillStyle = "black";
+      ctx.fillRect(-canvas.width/2,-canvas.height/2, canvas.width, canvas.height);
+
+      //manage input
+      if(playerAngleCount > 0){
+        playerAngle += angleSpeed;
+      } else if (playerAngleCount < 0){
+        playerAngle -= angleSpeed;
+      }
+
+      playerAngle = playerAngle % 360;
+
+      if(playerSpeedCount > 0){
+        velocity.X += acceleration*Math.cos(degToRad(playerAngle - 90));
+        velocity.Y += acceleration*Math.sin(degToRad(playerAngle - 90));
+      } else if (playerSpeedCount < 0){
+        velocity.X -= acceleration*Math.cos(degToRad(playerAngle - 90));
+        velocity.Y -= acceleration*Math.sin(degToRad(playerAngle - 90));
+      };
+
+      if(shot){
+        shoot();
+        shot = false;
+      }
+
+      //draw the asteroids
+      for(a in asteroids){
+        applyVelocity(asteroids[a].position, asteroids[a].velocity);
+        drawShapeFromArray(asteroids[a].points, asteroids[a].position, asteroids[a].angle);
+      }
+
+      //draw the bullets and check for asteroid collisions
+      for(b in bullets){
+        if(bullets[b].remaining > 0){
+          bullets[b].remaining--;
+          applyVelocity(bullets[b].thispos, bullets[b].velocity);
+          bullets[b].lastpos.X = bullets[b].thispos.X - bullets[b].velocity.X;
+          bullets[b].lastpos.Y = bullets[b].thispos.Y - bullets[b].velocity.Y;
+          ctx.strokeStyle = "white";
+          ctx.lineWidth = 5;
+          ctx.beginPath();
+          ctx.moveTo(bullets[b].thispos.X,bullets[b].thispos.Y);
+          ctx.lineTo(bullets[b].lastpos.X,bullets[b].lastpos.Y);
+          ctx.stroke();
+          for(a in asteroids){
+              if(doShapesIntersect(
+                asteroids[a].points,
+                asteroids[a].position,
+                asteroids[a].angle,
+                [bullets[b].thispos, bullets[b].lastpos],
+                {X:0,Y:0},
+                0
+              )){
+                bullets[b].remaining=0;
+                blowUpAsteroid(a);
+              }
+          }
+        }else {
+            bullets.splice(b,1);
+        }
+      }
+
+      //update player position
+      applyVelocity(playerPosition, velocity);
+
+      //check for player collision with asteroids
+      for(a in asteroids){
+          if(doShapesIntersect(
+            asteroids[a].points,
+            asteroids[a].position,
+            asteroids[a].angle,
+            playerShape,
+            playerPosition,
+            playerAngle
+          )){
+            clearInterval(running);
+            ctx.font = "30px Arial";
+            ctx.fillStyle = "red";
+            ctx.textAlign = "center";
+            ctx.fillText("YOU LOSE", 10, 20);
+            document.addEventListener("click", restartFunc);
+          }
+      }
+
+      //draw the player
+      drawShapeFromArray(playerShape, playerPosition, playerAngle);
+
+      //update the score
+      document.getElementById("score").innerHTML = "score: " + currentScore;
+
+      //check if all asteroids are destroyed
+      if(asteroids.length < 1){
+        //clearInterval(running);
+        startRound();
+        bullets.length = 0;
+      }
+    };
+    var running = setInterval(step, 1000/30);
+    function restartFunc (){
+      startRound();
+      currentScore = 0;
+      running = setInterval(step, 1000/30);
+      document.removeEventListener("click", restartFunc);
+    }
+  };
+   if (document.addEventListener) document.addEventListener("DOMContentLoaded", autorun, false);
+   else if (document.attachEvent) document.attachEvent("onreadystatechange", autorun);
+   else window.onload = autorun;
+  </script>
+  </body>
+</html>
